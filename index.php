@@ -1,23 +1,26 @@
 <?php
 require_once 'config.php';
 
-// 搜索关键词
 $keyword = trim($_GET['q'] ?? '');
+$activecat = (int)($_GET['cat'] ?? 0);
 
-// 查询分类及其下所有链接
 $categories = $pdo->query('SELECT * FROM categories ORDER BY sort_order, id')->fetchAll(PDO::FETCH_ASSOC);
 
 $linksByCategory = [];
 if ($keyword !== '') {
     $stmt = $pdo->prepare('SELECT * FROM links WHERE title LIKE ? OR description LIKE ? ORDER BY sort_order, id');
     $stmt->execute(['%' . $keyword . '%', '%' . $keyword . '%']);
-    $allLinks = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($allLinks as $link) {
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $link) {
+        $linksByCategory[$link['category_id']][] = $link;
+    }
+} elseif ($activecat > 0) {
+    $stmt = $pdo->prepare('SELECT * FROM links WHERE category_id = ? ORDER BY sort_order, id');
+    $stmt->execute([$activecat]);
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $link) {
         $linksByCategory[$link['category_id']][] = $link;
     }
 } else {
-    $stmt = $pdo->query('SELECT * FROM links ORDER BY sort_order, id');
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $link) {
+    foreach ($pdo->query('SELECT * FROM links ORDER BY sort_order, id')->fetchAll(PDO::FETCH_ASSOC) as $link) {
         $linksByCategory[$link['category_id']][] = $link;
     }
 }
@@ -32,88 +35,155 @@ if ($keyword !== '') {
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg: #f0f2f5;
-    --card-bg: #ffffff;
-    --primary: #4f6ef7;
-    --primary-dark: #3a57e8;
-    --text: #1a1a2e;
-    --muted: #6b7280;
-    --border: #e5e7eb;
-    --shadow: 0 2px 8px rgba(0,0,0,.08);
-    --radius: 12px;
+    --bg:        #0d1117;
+    --bg2:       #161b22;
+    --bg3:       #21262d;
+    --accent:    #58a6ff;
+    --accent2:   #3fb950;
+    --text:      #e6edf3;
+    --muted:     #8b949e;
+    --border:    rgba(255,255,255,.08);
+    --glass:     rgba(255,255,255,.04);
+    --radius:    10px;
+    --sidebar-w: 220px;
   }
 
+  html, body { height: 100%; }
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    display: flex;
+    flex-direction: column;
     min-height: 100vh;
   }
 
-  /* ── Header ── */
-  header {
-    background: linear-gradient(135deg, #4f6ef7 0%, #6a4fdb 100%);
-    color: #fff;
-    padding: 40px 20px 80px;
-    text-align: center;
-  }
-  header h1 { font-size: 2rem; letter-spacing: .05em; margin-bottom: 8px; }
-  header p  { opacity: .85; font-size: .95rem; }
-
-  /* ── Search ── */
-  .search-wrap {
-    max-width: 560px;
-    margin: -30px auto 0;
-    padding: 0 16px;
-    position: relative;
-    z-index: 10;
-  }
-  .search-box {
-    display: flex;
-    background: #fff;
-    border-radius: 50px;
-    box-shadow: 0 4px 20px rgba(0,0,0,.15);
-    overflow: hidden;
-  }
-  .search-box input {
-    flex: 1;
-    border: none;
-    outline: none;
-    padding: 14px 20px;
-    font-size: 1rem;
-    color: var(--text);
-    background: transparent;
-  }
-  .search-box button {
-    background: var(--primary);
-    color: #fff;
-    border: none;
-    padding: 0 24px;
-    cursor: pointer;
-    font-size: 1.1rem;
-    transition: background .2s;
-  }
-  .search-box button:hover { background: var(--primary-dark); }
-
-  /* ── Main ── */
-  main {
-    max-width: 1100px;
-    margin: 40px auto;
-    padding: 0 16px 60px;
-  }
-
-  /* ── Section ── */
-  .section { margin-bottom: 36px; }
-  .section-title {
-    font-size: 1.1rem;
-    font-weight: 600;
-    margin-bottom: 16px;
+  /* ── Top Bar ── */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(13,17,23,.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
-    gap: 8px;
-    color: var(--text);
+    gap: 16px;
+    padding: 0 24px;
+    height: 56px;
   }
-  .section-title span.line {
+  .topbar .logo {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent);
+    white-space: nowrap;
+    text-decoration: none;
+  }
+  .topbar form {
+    flex: 1;
+    max-width: 480px;
+    display: flex;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    transition: border-color .2s;
+  }
+  .topbar form:focus-within { border-color: var(--accent); }
+  .topbar form input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    padding: 8px 14px;
+    font-size: .9rem;
+  }
+  .topbar form input::placeholder { color: var(--muted); }
+  .topbar form button {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    padding: 0 14px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: color .2s;
+  }
+  .topbar form button:hover { color: var(--accent); }
+
+  /* ── Layout ── */
+  .layout {
+    display: flex;
+    flex: 1;
+    max-width: 1280px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 24px 16px;
+    gap: 24px;
+  }
+
+  /* ── Sidebar ── */
+  aside {
+    width: var(--sidebar-w);
+    flex-shrink: 0;
+  }
+  .sidebar-inner {
+    position: sticky;
+    top: 72px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .sidebar-inner .sid-head {
+    padding: 12px 16px;
+    font-size: .75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .sid-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    text-decoration: none;
+    color: var(--muted);
+    font-size: .9rem;
+    transition: background .15s, color .15s;
+    border-left: 3px solid transparent;
+  }
+  .sid-item:hover  { background: var(--glass); color: var(--text); }
+  .sid-item.active { background: var(--glass); color: var(--accent); border-left-color: var(--accent); }
+  .sid-item .cnt {
+    margin-left: auto;
+    font-size: .72rem;
+    background: var(--bg3);
+    color: var(--muted);
+    padding: 1px 7px;
+    border-radius: 20px;
+  }
+
+  /* ── Content ── */
+  .content { flex: 1; min-width: 0; }
+
+  .section { margin-bottom: 36px; }
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: .85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .section-title::after {
+    content: '';
     flex: 1;
     height: 1px;
     background: var(--border);
@@ -122,123 +192,171 @@ if ($keyword !== '') {
   /* ── Grid ── */
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 12px;
   }
 
   /* ── Card ── */
   .card {
-    background: var(--card-bg);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: 18px 16px;
-    text-decoration: none;
-    color: var(--text);
-    transition: transform .2s, box-shadow .2s;
     display: flex;
     align-items: flex-start;
     gap: 12px;
+    padding: 14px;
+    background: var(--bg2);
     border: 1px solid var(--border);
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: var(--text);
+    transition: border-color .2s, background .2s, transform .2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(88,166,255,.06), transparent 60%);
+    opacity: 0;
+    transition: opacity .2s;
   }
   .card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 24px rgba(0,0,0,.12);
+    border-color: rgba(88,166,255,.4);
+    background: var(--bg3);
+    transform: translateY(-2px);
   }
+  .card:hover::before { opacity: 1; }
+
   .card .icon {
-    font-size: 1.6rem;
+    font-size: 1.5rem;
     line-height: 1;
     flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg3);
+    border-radius: 8px;
   }
   .card .info { overflow: hidden; }
   .card .info strong {
     display: block;
-    font-size: .95rem;
+    font-size: .9rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .card .info small {
-    display: block;
-    color: var(--muted);
-    font-size: .78rem;
-    margin-top: 4px;
-    line-height: 1.4;
-    overflow: hidden;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: .76rem;
+    margin-top: 3px;
+    line-height: 1.45;
   }
 
   /* ── Empty ── */
-  .empty { text-align: center; color: var(--muted); padding: 60px 0; font-size: 1rem; }
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 80px 0;
+    font-size: .95rem;
+  }
+  .empty a { color: var(--accent); }
 
   /* ── Footer ── */
   footer {
     text-align: center;
     color: var(--muted);
-    font-size: .82rem;
-    padding: 20px;
+    font-size: .78rem;
+    padding: 16px;
+    border-top: 1px solid var(--border);
   }
 
-  @media (max-width: 480px) {
-    header h1 { font-size: 1.5rem; }
+  /* ── Responsive ── */
+  @media (max-width: 720px) {
+    aside { display: none; }
     .grid { grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); }
   }
 </style>
 </head>
 <body>
 
-<header>
-  <h1>🌐 <?= htmlspecialchars(SITE_NAME) ?></h1>
-  <p>收录精选网站，快速直达</p>
-</header>
-
-<div class="search-wrap">
-  <form class="search-box" method="get" action="index.php">
-    <input type="text" name="q" value="<?= htmlspecialchars($keyword) ?>"
-           placeholder="搜索网站名称或描述…" autocomplete="off">
-    <button type="submit">🔍</button>
+<!-- Top Bar -->
+<div class="topbar">
+  <a class="logo" href="index.php">🌐 <?= htmlspecialchars(SITE_NAME) ?></a>
+  <form method="get" action="index.php">
+    <input type="text" name="q"
+           value="<?= htmlspecialchars($keyword) ?>"
+           placeholder="搜索网站…" autocomplete="off">
+    <button type="submit">⌕</button>
   </form>
 </div>
 
-<main>
-<?php
-$hasResult = false;
-foreach ($categories as $cat):
-    $links = $linksByCategory[$cat['id']] ?? [];
-    if (empty($links)) continue;
-    $hasResult = true;
-?>
-  <div class="section">
-    <div class="section-title">
-      <?= htmlspecialchars($cat['icon']) ?>
-      <?= htmlspecialchars($cat['name']) ?>
-      <span class="line"></span>
-    </div>
-    <div class="grid">
-      <?php foreach ($links as $link): ?>
-      <a class="card" href="click.php?id=<?= $link['id'] ?>" target="_blank" rel="noopener">
-        <span class="icon"><?= htmlspecialchars($link['icon']) ?></span>
-        <div class="info">
-          <strong><?= htmlspecialchars($link['title']) ?></strong>
-          <small><?= htmlspecialchars($link['description']) ?></small>
-        </div>
+<div class="layout">
+
+  <!-- Sidebar -->
+  <aside>
+    <div class="sidebar-inner">
+      <div class="sid-head">分类导航</div>
+      <a class="sid-item <?= $activecat === 0 && $keyword === '' ? 'active' : '' ?>"
+         href="index.php">🏠 全部网站
+        <span class="cnt"><?= array_sum(array_map('count', $linksByCategory)) ?></span>
+      </a>
+      <?php foreach ($categories as $cat):
+        $cnt = count($pdo->query("SELECT id FROM links WHERE category_id={$cat['id']}")->fetchAll());
+      ?>
+      <a class="sid-item <?= $activecat === (int)$cat['id'] ? 'active' : '' ?>"
+         href="index.php?cat=<?= $cat['id'] ?>">
+        <?= htmlspecialchars($cat['icon']) ?>
+        <?= htmlspecialchars($cat['name']) ?>
+        <span class="cnt"><?= $cnt ?></span>
       </a>
       <?php endforeach; ?>
     </div>
-  </div>
-<?php endforeach; ?>
+  </aside>
 
-<?php if (!$hasResult): ?>
-  <div class="empty">
-    <?= $keyword ? '未找到匹配的网站，请尝试其他关键词。' : '暂无数据，请先运行 <a href="install.php">install.php</a> 初始化。' ?>
-  </div>
-<?php endif; ?>
-</main>
+  <!-- Main Content -->
+  <div class="content">
+    <?php
+    $hasResult = false;
+    foreach ($categories as $cat):
+      $links = $linksByCategory[$cat['id']] ?? [];
+      if (empty($links)) continue;
+      $hasResult = true;
+    ?>
+    <div class="section">
+      <div class="section-title">
+        <?= htmlspecialchars($cat['icon']) ?> <?= htmlspecialchars($cat['name']) ?>
+      </div>
+      <div class="grid">
+        <?php foreach ($links as $link): ?>
+        <a class="card" href="click.php?id=<?= $link['id'] ?>" target="_blank" rel="noopener">
+          <span class="icon"><?= htmlspecialchars($link['icon']) ?></span>
+          <div class="info">
+            <strong><?= htmlspecialchars($link['title']) ?></strong>
+            <small><?= htmlspecialchars($link['description']) ?></small>
+          </div>
+        </a>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <?php endforeach; ?>
 
-<footer>
-  &copy; <?= date('Y') ?> <?= htmlspecialchars(SITE_NAME) ?> &nbsp;·&nbsp; Powered by PHP &amp; MySQL
-</footer>
+    <?php if (!$hasResult): ?>
+    <div class="empty">
+      <?= $keyword
+        ? '未找到匹配的网站，请尝试其他关键词。'
+        : '暂无数据，请先运行 <a href="install.php">install.php</a> 初始化。' ?>
+    </div>
+    <?php endif; ?>
+  </div>
+
+</div>
+
+<footer>&copy; <?= date('Y') ?> <?= htmlspecialchars(SITE_NAME) ?> &nbsp;·&nbsp; Powered by PHP &amp; MySQL</footer>
 
 </body>
 </html>
