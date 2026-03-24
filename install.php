@@ -4,10 +4,7 @@
  * 运行一次后可删除此文件
  */
 
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'nav_site');
+require_once __DIR__ . '/config.php';
 
 try {
     $pdo = new PDO(
